@@ -1,4 +1,4 @@
-Custom Docker-in-Docker Jenkins Image for Kubernetes (AMD64)
+# Custom Docker-in-Docker Jenkins Image for Kubernetes (AMD64)
 This README provides guidance on creating a custom Docker-in-Docker (DinD) Jenkins image, specifically designed for deployment in a Kubernetes environment targeting the amd64 architecture. This approach enables Jenkins to run Docker commands within its jobs, facilitating the building, testing, and deployment of Docker containers directly from Jenkins pipelines.
 
 Overview
