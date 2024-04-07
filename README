@@ -1,0 +1,89 @@
+# Custom Docker-in-Docker Jenkins Image for Kubernetes (AMD64)
+This README provides guidance on creating a custom Docker-in-Docker (DinD) Jenkins image, specifically designed for deployment in a Kubernetes environment targeting the amd64 architecture. This approach enables Jenkins to run Docker commands within its jobs, facilitating the building, testing, and deployment of Docker containers directly from Jenkins pipelines.
+
+Overview
+Docker-in-Docker (DinD) involves running a Docker daemon inside a Docker container. This setup is particularly useful for CI/CD workflows in Jenkins, allowing pipelines to build and push Docker images. However, it's important to note that while DinD can be powerful, it also introduces complexities and security concerns. Therefore, it's often recommended to use the Docker socket binding approach for production environments. Nonetheless, DinD remains a valuable tool for specific use cases and testing environments where isolation from the host system is desired.
+
+Prerequisites
+Docker: You must have Docker installed on your local development machine.
+Kubernetes Cluster: Access to a Kubernetes cluster with amd64 architecture nodes is required.
+kubectl: Kubernetes command-line tool, configured to communicate with your cluster.
+Familiarity with Kubernetes, Jenkins, and Docker: A basic understanding of how to deploy applications on Kubernetes, as well as how Jenkins and Docker work.
+Steps
+Step 1: Create the Dockerfile
+You'll start by creating a Dockerfile for your custom Jenkins DinD image. This Dockerfile will include the installation of Docker inside the Jenkins container.
+
+Dockerfile
+Copy code
+# Use Jenkins official image as the base
+FROM jenkins/jenkins:lts-jdk11
+
+# Switch to root to install Docker
+USER root
+
+# Install necessary packages for Docker installation
+RUN apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
+
+# Add Docker’s official GPG key
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+
+# Add the Docker apt repository
+RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+
+# Install Docker Engine
+RUN apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io
+
+# Add Jenkins user to the Docker group
+RUN usermod -aG docker jenkins
+
+# Return to the jenkins user
+USER jenkins
+Step 2: Build the Docker Image
+With the Dockerfile created, you'll now build the Docker image. Ensure you're in the directory containing the Dockerfile and execute the following command:
+
+sh
+Copy code
+docker build -t custom-jenkins-dind:latest .
+Step 3: Deploy to Kubernetes
+Before deploying, consider that running DinD securely in Kubernetes requires careful configuration to prevent security issues. It's recommended to use Kubernetes secrets for storing sensitive data and configure security contexts appropriately.
+
+Create a deployment file jenkins-deployment.yaml:
+
+yaml
+Copy code
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-dind
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins-dind
+  template:
+    metadata:
+      labels:
+        app: jenkins-dind
+    spec:
+      containers:
+      - name: jenkins
+        image: custom-jenkins-dind:latest
+        securityContext:
+          privileged: true
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+      volumes:
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock
+Deploy to Kubernetes:
+
+sh
+Copy code
+kubectl apply -f jenkins-deployment.yaml
+Security Considerations
+Privileged Mode: Running containers in privileged mode (privileged: true) is necessary for DinD but introduces potential security risks. Use network policies and pod security policies to mitigate risks.
+Docker Socket: This example also mounts the Docker socket as a volume, which is typically used in the Docker socket approach. For pure DinD, you might not need this, but it's included here for completeness.
